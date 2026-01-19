@@ -7,7 +7,8 @@ RUN apt-get update && apt-get install -y \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install gd pdo pdo_mysql
+    && docker-php-ext-install gd pdo pdo_mysql \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Enable Apache mod_rewrite for Laravel
 RUN a2enmod rewrite
@@ -18,37 +19,47 @@ WORKDIR /var/www/html
 # Install Composer
 COPY --from=composer:2.5 /usr/bin/composer /usr/bin/composer
 
-# Copy project files
+# Copy package files first for better caching
+COPY package*.json vite.config.js ./
+COPY resources ./resources
+
+# Copy all project files
 COPY . .
 
-# Verify CSS files exist before build
-RUN test -f /var/www/html/resources/css/app.css && \
-    test -f /var/www/html/resources/css/orchid-custom.css && \
-    echo "CSS files found"
-
 # Install PHP dependencies
-RUN composer install --no-dev --optimize-autoloader
+RUN composer install --no-dev --optimize-autoloader --no-scripts
 
-# Install Node.js dependencies and build assets
-RUN set -e && \
-    npm ci && \
-    npm run build && \
-    echo "Build completed successfully" && \
-    ls -la /var/www/html/public/build/ && \
+# Install Node.js dependencies
+RUN npm ci
+
+# Build assets for production
+RUN npm run build
+
+# Verify build output
+RUN ls -la /var/www/html/public/build/ && \
     test -f /var/www/html/public/build/manifest.json && \
-    echo "Manifest file exists" && \
-    (grep -q "orchid-custom\|--bs-primary\|platform-aside" /var/www/html/public/build/assets/*.css 2>/dev/null && echo "Custom CSS found in build" || echo "Warning: Custom CSS may not be included") && \
-    echo "Build verification complete"
+    echo "✓ Build successful - manifest.json exists"
 
-# Set permissions for Laravel storage
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/public/build
+# Set permissions
+RUN chown -R www-data:www-data \
+    /var/www/html/storage \
+    /var/www/html/bootstrap/cache \
+    /var/www/html/public
 
-# Set Apache document root to Laravel public/
+# Set Apache document root
 ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
 
 # Update Apache config
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/000-default.conf \
+RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf \
     && sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
+
+# Add .htaccess support
+RUN echo '<Directory /var/www/html/public>\n\
+    Options Indexes FollowSymLinks\n\
+    AllowOverride All\n\
+    Require all granted\n\
+</Directory>' > /etc/apache2/conf-available/laravel.conf \
+    && a2enconf laravel
 
 # Expose port 80
 EXPOSE 80
