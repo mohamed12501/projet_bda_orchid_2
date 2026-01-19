@@ -21,11 +21,24 @@ COPY --from=composer:2.5 /usr/bin/composer /usr/bin/composer
 # Copy project files
 COPY . .
 
+# Verify CSS files exist before build
+RUN test -f /var/www/html/resources/css/app.css && \
+    test -f /var/www/html/resources/css/orchid-custom.css && \
+    echo "CSS files found"
+
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader
 
 # Install Node.js dependencies and build assets
-RUN npm ci && npm run build
+RUN set -e && \
+    npm ci && \
+    npm run build && \
+    echo "Build completed successfully" && \
+    ls -la /var/www/html/public/build/ && \
+    test -f /var/www/html/public/build/manifest.json && \
+    echo "Manifest file exists" && \
+    (grep -q "orchid-custom\|--bs-primary\|platform-aside" /var/www/html/public/build/assets/*.css 2>/dev/null && echo "Custom CSS found in build" || echo "Warning: Custom CSS may not be included") && \
+    echo "Build verification complete"
 
 # Set permissions for Laravel storage
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/public/build
