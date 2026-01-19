@@ -78,6 +78,19 @@ class PlatformProvider extends OrchidServiceProvider
                 ->title('Navigation')
                 ->route(config('platform.index')),
         ];
+
+        $menu[] = Menu::make('Planning')
+        ->icon('bs.calendar3')
+        ->title('Planning')
+        ->list([
+            Menu::make('Planning Runs')
+                ->icon('bs.play-circle')
+                ->route('platform.planning.runs'),
+            Menu::make('Planning Items')
+                ->icon('bs.list-ul')
+                ->route('platform.planning.items'),
+           
+        ]);
         
         // Only show full menus for admin, doyen, and chef_dept
         if ($showAllMenus) {
@@ -130,37 +143,11 @@ class PlatformProvider extends OrchidServiceProvider
                         ->route('platform.examens.groupes'),
                 ]);
 
-            $menu[] = Menu::make('Planning')
-                ->icon('bs.calendar3')
-                ->title('Planning')
-                ->list([
-                    Menu::make('Planning Runs')
-                        ->icon('bs.play-circle')
-                        ->route('platform.planning.runs'),
-                    Menu::make('Planning Items')
-                        ->icon('bs.list-ul')
-                        ->route('platform.planning.items'),
-                   
-                ]);
+      
 
-            $menu[] = Menu::make('Statistiques')
-                ->icon('bs.bar-chart')
-                ->title('Statistiques')
-                ->route('platform.statistiques');
+      
 
-            // System menus only for admin
-            if ($userRole === 'admin_examens') {
-                $menu[] = Menu::make(__('Users'))
-                    ->icon('bs.people')
-                    ->route('platform.systems.users')
-                    ->permission('platform.systems.users')
-                    ->title(__('Access Controls'));
-
-                $menu[] = Menu::make(__('Roles'))
-                    ->icon('bs.shield')
-                    ->route('platform.systems.roles')
-                    ->permission('platform.systems.roles');
-            }
+        
         } else {
             // For prof and etudiant: only show Planning Items
             $menu[] = Menu::make('Planning des Examens')
